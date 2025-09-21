@@ -1,57 +1,104 @@
-
-#include "stm32f10x_gpio.h"
+#include "stm32f10x.h"
 #include "stm32f10x_rcc.h"
+#include "stm32f10x_gpio.h"
+#include "stm32f10x_usart.h"
+#include <string.h>
 
-uint16_t sangdan[8]={0xFE, 0xFC, 0xF8, 0xF0, 0xE0, 0xC0, 0x80, 0x00};
-void Delay(uint32_t);
-void GPIO_Config(void);
-void Clock_Config(void);
+#define LED_PIN         GPIO_Pin_0
+#define LED_PORT        GPIOA
 
-int main(void){
-    Clock_Config(); 
-    SystemCoreClockUpdate();
-    GPIO_Config();
+#define USART2_TX_PIN   GPIO_Pin_2
+#define USART2_RX_PIN   GPIO_Pin_3
+#define USART2_PORT     GPIOA
+
+void GPIO_Config(void) {
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+
+    GPIO_InitTypeDef gpio;
+    gpio.GPIO_Pin = LED_PIN;
+    gpio.GPIO_Mode = GPIO_Mode_Out_PP;
+    gpio.GPIO_Speed = GPIO_Speed_2MHz;
+    GPIO_Init(LED_PORT, &gpio);
+
+    GPIO_ResetBits(LED_PORT, LED_PIN);  
+}
+
+
+void USART2_Init(void) {
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
+
+    GPIO_InitTypeDef gpio;
+
+   
+    gpio.GPIO_Pin = USART2_TX_PIN;
+    gpio.GPIO_Mode = GPIO_Mode_AF_PP;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(USART2_PORT, &gpio);
+
     
-    while(1){
-        for( int i = 0; i < 8; i++){
-            GPIO_Write(GPIOC, sangdan[i]);
-            Delay(100);   
+    gpio.GPIO_Pin = USART2_RX_PIN;
+    gpio.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+    GPIO_Init(USART2_PORT, &gpio);
+
+    USART_InitTypeDef usart;
+    usart.USART_BaudRate = 9600;
+    usart.USART_WordLength = USART_WordLength_8b;
+    usart.USART_StopBits = USART_StopBits_1;
+    usart.USART_Parity = USART_Parity_No;
+    usart.USART_Mode = USART_Mode_Tx | USART_Mode_Rx;
+    usart.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+    USART_Init(USART2, &usart);
+
+    USART_Cmd(USART2, ENABLE);
+}
+
+
+void USART2_SendChar(char c) {
+    while (USART_GetFlagStatus(USART2, USART_FLAG_TXE) == RESET);
+    USART_SendData(USART2, (uint16_t)c);
+}
+
+
+void USART2_SendString(char *str) {
+    while (*str) USART2_SendChar(*str++);
+}
+
+
+char USART2_ReadChar(void) {
+    while (USART_GetFlagStatus(USART2, USART_FLAG_RXNE) == RESET);
+    return (char)USART_ReceiveData(USART2);
+}
+
+
+int main(void) {
+    char buffer[10];
+    int index = 0;
+
+    GPIO_Config();
+    USART2_Init();
+
+    USART2_SendString("Hello from STM32!\r\n");
+
+    while (1) {
+        char c = USART2_ReadChar();   
+        USART2_SendChar(c);           
+
+        if (c == '\r' || c == '\n') { 
+            buffer[index] = '\0';    
+
+            if (strcmp(buffer, "ON") == 0) {
+                GPIO_SetBits(LED_PORT, LED_PIN);
+                USART2_SendString("\r\nLED ON\r\n");
+            }
+            else if (strcmp(buffer, "OFF") == 0) {
+                GPIO_ResetBits(LED_PORT, LED_PIN);
+                USART2_SendString("\r\nLED OFF\r\n");
+            }
+            index = 0; 
+        } else {
+            buffer[index++] = c;
+            if (index >= (int)sizeof(buffer)) index = 0; 
         }
     }
-}
-
-void Delay(uint32_t t){
-    unsigned int i,j;
-    
-    for(i=0;i<t;i++){
-        for(j=0;j< 0x2AFF; j++);
-    }
-
-}
-void GPIO_Config(){
-    GPIO_InitTypeDef GPIO_InitStructure;
-
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, ENABLE);
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-    GPIO_InitStructure.GPIO_Pin  = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-    GPIO_Init(GPIOC, &GPIO_InitStructure);
-}
-void Clock_Config(void){
-    
-    RCC_DeInit();
-    
-    RCC_HCLKConfig(RCC_SYSCLK_Div1); 
-  
-    RCC_PCLK2Config(RCC_HCLK_Div2);
-  
-    RCC_PCLK1Config(RCC_HCLK_Div2);
-   
-    RCC_HSICmd(ENABLE); 
-   
-    while (RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET){}
-    
-    RCC_SYSCLKConfig(RCC_SYSCLKSource_HSI);
-   
-    while(RCC_GetSYSCLKSource() != 0x00) {}    
 }
