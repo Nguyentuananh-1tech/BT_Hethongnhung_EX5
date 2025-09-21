@@ -11,10 +11,7 @@ Chương trình sử dụng **UART1 trên STM32F103** để giao tiếp với m�
 - **Board**: STM32F103C8T6 (Blue Pill)
 - **LED**: gắn sẵn trên **PC13**
 - **USB-TTL** để kết nối với máy tính
-- **Kết nối chân**:
-  - PA9 (TX)  → RX của USB-TTL
-  - PA10 (RX) → TX của USB-TTL
-  - GND      ↔ GND
+
 
 ## ⚙️ Cấu hình
 - **GPIO (PC13 – LED)**: Output Push-Pull, speed 2 MHz, mặc định mức cao (LED tắt ban đầu).
